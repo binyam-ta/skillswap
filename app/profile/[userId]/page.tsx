@@ -73,15 +73,28 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
         );
         const swapsSnapshot = await getDocs(q);
         
-        const relevantSwaps = swapsSnapshot.docs
-          .map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-          } as Swap))
-          .filter(swap => 
-            swap.participants.includes(userId) && 
-            swap.participants.includes(user.uid)
-          );
+        // First convert the document data to properly typed objects
+        const allSwaps = swapsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            participants: data.participants || [],
+            status: data.status || '',
+            createdAt: data.createdAt || null,
+            updatedAt: data.updatedAt || null,
+            skillOffered: data.skillOffered || '',
+            skillRequested: data.skillRequested || '',
+            initiator: data.initiator || '',
+            recipient: data.recipient || '',
+            ...data
+          } as Swap;
+        });
+        
+        // Then filter the properly typed objects
+        const relevantSwaps = allSwaps.filter(swap => 
+          swap.participants.includes(userId) && 
+          swap.participants.includes(user.uid)
+        );
         
         setSwapRequests(relevantSwaps);
       } catch (error) {
