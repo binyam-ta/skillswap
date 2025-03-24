@@ -3,15 +3,30 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, query, where, getDocs, DocumentData, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import DashboardLayout from '@/components/DashboardLayout';
 
-export default function PendingSwaps() {
-  const [user, setUser] = useState<any>(null);
+// Define proper interfaces for data types
+interface Swap {
+  id: string;
+  participants: string[];
+  status: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  skillOffered: string;
+  skillRequested: string;
+  initiator: string;
+  recipient: string;
+  [key: string]: any; // For any other properties
+}
+
+export default function Swaps() {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pendingSwaps, setPendingSwaps] = useState<any[]>([]);
+  const [activeSwaps, setActiveSwaps] = useState<Swap[]>([]);
+  const [pendingSwaps, setPendingSwaps] = useState<Swap[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -19,8 +34,23 @@ export default function PendingSwaps() {
       if (currentUser) {
         setUser(currentUser);
         
-        // Fetch user's pending swaps
+        // Fetch user's swaps
         try {
+          // Fetch active swaps
+          const activeSwapsQuery = query(
+            collection(db, 'swaps'),
+            where('status', '==', 'active'),
+            where('participants', 'array-contains', currentUser.uid)
+          );
+          
+          const activeSwapsSnapshot = await getDocs(activeSwapsQuery);
+          const activeSwapsData = activeSwapsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Swap[];
+          setActiveSwaps(activeSwapsData);
+          
+          // Fetch pending swaps
           const pendingSwapsQuery = query(
             collection(db, 'swaps'),
             where('status', '==', 'pending'),
@@ -31,10 +61,10 @@ export default function PendingSwaps() {
           const pendingSwapsData = pendingSwapsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-          }));
+          })) as Swap[];
           setPendingSwaps(pendingSwapsData);
         } catch (error) {
-          console.error('Error fetching pending swaps:', error);
+          console.error('Error fetching swaps:', error);
         }
       } else {
         // Redirect to login if not authenticated
@@ -61,7 +91,7 @@ export default function PendingSwaps() {
     <DashboardLayout>
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Pending Requests</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">My Swaps</h1>
         </div>
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
@@ -75,7 +105,7 @@ export default function PendingSwaps() {
                 <nav className="-mb-px flex space-x-8">
                   <Link
                     href="/swaps"
-                    className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm"
+                    className="border-primary-500 text-primary-600 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm"
                   >
                     All Swaps
                   </Link>
@@ -87,7 +117,7 @@ export default function PendingSwaps() {
                   </Link>
                   <Link
                     href="/swaps/pending"
-                    className="border-primary-500 text-primary-600 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm"
+                    className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm"
                   >
                     Pending
                   </Link>
@@ -102,9 +132,53 @@ export default function PendingSwaps() {
             </div>
           </div>
 
-          {/* Pending Swaps List */}
+          {/* Active Swaps */}
           <div className="mt-8">
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
+            <h2 className="text-lg font-medium text-gray-900">Active Swaps</h2>
+            <div className="mt-4 bg-white shadow overflow-hidden sm:rounded-md">
+              {activeSwaps.length > 0 ? (
+                <ul className="divide-y divide-gray-200">
+                  {activeSwaps.map((swap) => (
+                    <li key={swap.id}>
+                      <Link href={`/swaps/${swap.id}`} className="block hover:bg-gray-50">
+                        <div className="px-4 py-4 sm:px-6">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-primary-600 truncate">
+                              {swap.title || 'Skill Exchange'}
+                            </p>
+                            <div className="ml-2 flex-shrink-0 flex">
+                              <p className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                Active
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2 sm:flex sm:justify-between">
+                            <div className="sm:flex">
+                              <p className="flex items-center text-sm text-gray-500">
+                                Started: {new Date(swap.startDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="px-4 py-6 text-center text-sm text-gray-500">
+                  <p>You don't have any active swaps at the moment.</p>
+                  <Link href="/skills/browse" className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+                    Browse Skills
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Swaps */}
+          <div className="mt-8">
+            <h2 className="text-lg font-medium text-gray-900">Pending Requests</h2>
+            <div className="mt-4 bg-white shadow overflow-hidden sm:rounded-md">
               {pendingSwaps.length > 0 ? (
                 <ul className="divide-y divide-gray-200">
                   {pendingSwaps.map((swap) => (
@@ -127,11 +201,6 @@ export default function PendingSwaps() {
                                 Requested: {new Date(swap.requestDate).toLocaleDateString()}
                               </p>
                             </div>
-                            <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                              <p>
-                                {swap.isIncoming ? 'Incoming Request' : 'Outgoing Request'}
-                              </p>
-                            </div>
                           </div>
                         </div>
                       </Link>
@@ -141,9 +210,6 @@ export default function PendingSwaps() {
               ) : (
                 <div className="px-4 py-6 text-center text-sm text-gray-500">
                   <p>You don't have any pending swap requests.</p>
-                  <Link href="/skills/browse" className="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-                    Browse Skills
-                  </Link>
                 </div>
               )}
             </div>

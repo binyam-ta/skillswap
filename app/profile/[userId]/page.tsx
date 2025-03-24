@@ -2,18 +2,45 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import DashboardLayout from '@/components/DashboardLayout';
+
+// Define proper interfaces for data types
+interface Swap {
+  id: string;
+  participants: string[];
+  status: string;
+  createdAt: any;
+  updatedAt: any;
+  skillOffered: string;
+  skillRequested: string;
+  [key: string]: any; // For any other properties
+}
+
+interface UserProfile {
+  displayName?: string;
+  email?: string;
+  photoURL?: string;
+  bio?: string;
+  skills?: string[];
+  location?: string;
+  ratings?: number[];
+  skillsOffered?: string[];
+  skillsWanted?: string[];
+  availability?: string;
+  createdAt?: any;
+  [key: string]: any; // For any other properties
+}
 
 export default function UserProfile({ params }: { params: { userId: string } }) {
   const { userId } = params;
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState('');
-  const [swapRequests, setSwapRequests] = useState<any[]>([]);
+  const [swapRequests, setSwapRequests] = useState<Swap[]>([]);
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const router = useRouter();
 
@@ -33,7 +60,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
         const userDoc = await getDoc(userDocRef);
         
         if (userDoc.exists()) {
-          setUserProfile(userDoc.data());
+          setUserProfile(userDoc.data() as UserProfile);
         } else {
           setError('User not found');
         }
@@ -47,7 +74,10 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
         const swapsSnapshot = await getDocs(q);
         
         const relevantSwaps = swapsSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+          } as Swap))
           .filter(swap => 
             swap.participants.includes(userId) && 
             swap.participants.includes(user.uid)
@@ -169,7 +199,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
             <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
               <div className="flex items-center">
                 <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center">
-                  {userProfile.photoURL ? (
+                  {userProfile?.photoURL ? (
                     <img
                       className="h-20 w-20 rounded-full"
                       src={userProfile.photoURL}
@@ -177,22 +207,22 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
                     />
                   ) : (
                     <span className="text-gray-600 font-medium text-2xl">
-                      {userProfile.displayName?.charAt(0) || userProfile.email?.charAt(0) || 'U'}
+                      {userProfile?.displayName?.charAt(0) || userProfile?.email?.charAt(0) || 'U'}
                     </span>
                   )}
                 </div>
                 <div className="ml-6">
-                  <h2 className="text-xl font-bold text-gray-900">{userProfile.displayName}</h2>
+                  <h2 className="text-xl font-bold text-gray-900">{userProfile?.displayName}</h2>
                   <div className="mt-1 flex items-center">
                     <svg className="text-yellow-400 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118l-2.8-2.034c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
                     <span className="ml-1 text-sm text-gray-500">
-                      {calculateAverageRating(userProfile.ratings)} ({userProfile.ratings?.length || 0} ratings)
+                      {calculateAverageRating(userProfile?.ratings)} ({userProfile?.ratings?.length || 0} ratings)
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-gray-500">
-                    Member since {new Date(userProfile.createdAt).toLocaleDateString()}
+                    Member since {new Date(userProfile?.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -201,11 +231,11 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
               <dl className="mt-6 grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Location</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{userProfile.location || 'Not specified'}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">{userProfile?.location || 'Not specified'}</dd>
                 </div>
                 <div className="sm:col-span-1">
                   <dt className="text-sm font-medium text-gray-500">Availability</dt>
-                  <dd className="mt-1 text-sm text-gray-900">{userProfile.availability || 'Not specified'}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">{userProfile?.availability || 'Not specified'}</dd>
                 </div>
               </dl>
               
@@ -213,7 +243,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
               <div className="mt-6">
                 <dt className="text-sm font-medium text-gray-500">Bio</dt>
                 <dd className="mt-1 text-sm text-gray-900 whitespace-pre-line">
-                  {userProfile.bio || 'No bio provided'}
+                  {userProfile?.bio || 'No bio provided'}
                 </dd>
               </div>
             </div>
@@ -225,7 +255,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">Skills Offered</h3>
                   <div className="mt-4">
-                    {userProfile.skillsOffered && userProfile.skillsOffered.length > 0 ? (
+                    {userProfile?.skillsOffered && userProfile.skillsOffered.length > 0 ? (
                       <ul className="divide-y divide-gray-200">
                         {userProfile.skillsOffered.map((skill: string, index: number) => (
                           <li key={index} className="py-3">
@@ -245,7 +275,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">Skills Wanted</h3>
                   <div className="mt-4">
-                    {userProfile.skillsWanted && userProfile.skillsWanted.length > 0 ? (
+                    {userProfile?.skillsWanted && userProfile.skillsWanted.length > 0 ? (
                       <ul className="divide-y divide-gray-200">
                         {userProfile.skillsWanted.map((skill: string, index: number) => (
                           <li key={index} className="py-3">

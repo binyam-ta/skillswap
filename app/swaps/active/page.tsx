@@ -3,15 +3,32 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { onAuthStateChanged } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, query, where, getDocs, DocumentData, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import DashboardLayout from '@/components/DashboardLayout';
 
+// Define proper interfaces for data types
+interface Swap {
+  id: string;
+  participants: string[];
+  status: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  skillOffered: string;
+  skillRequested: string;
+  initiator: string;
+  recipient: string;
+  title: string;
+  startDate: Timestamp;
+  nextSession?: Timestamp;
+  [key: string]: any; // For any other properties
+}
+
 export default function ActiveSwaps() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSwaps, setActiveSwaps] = useState<any[]>([]);
+  const [activeSwaps, setActiveSwaps] = useState<Swap[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -31,7 +48,7 @@ export default function ActiveSwaps() {
           const activeSwapsData = activeSwapsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-          }));
+          })) as Swap[];
           setActiveSwaps(activeSwapsData);
         } catch (error) {
           console.error('Error fetching active swaps:', error);
@@ -124,12 +141,12 @@ export default function ActiveSwaps() {
                           <div className="mt-2 sm:flex sm:justify-between">
                             <div className="sm:flex">
                               <p className="flex items-center text-sm text-gray-500">
-                                Started: {new Date(swap.startDate).toLocaleDateString()}
+                                Started: {new Date(swap.startDate.toDate()).toLocaleDateString()}
                               </p>
                             </div>
                             <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
                               <p>
-                                Next session: {swap.nextSession ? new Date(swap.nextSession).toLocaleDateString() : 'Not scheduled'}
+                                Next session: {swap.nextSession ? new Date(swap.nextSession.toDate()).toLocaleDateString() : 'Not scheduled'}
                               </p>
                             </div>
                           </div>
