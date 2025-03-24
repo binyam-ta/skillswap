@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs, DocumentData } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, DocumentData, Timestamp } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -12,10 +12,12 @@ interface Swap {
   id: string;
   participants: string[];
   status: string;
-  createdAt: any;
-  updatedAt: any;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
   skillOffered: string;
   skillRequested: string;
+  initiator: string;
+  recipient: string;
   [key: string]: any; // For any other properties
 }
 
@@ -30,11 +32,11 @@ interface UserProfile {
   skillsOffered?: string[];
   skillsWanted?: string[];
   availability?: string;
-  createdAt?: any;
+  createdAt?: Timestamp | null;
   [key: string]: any; // For any other properties
 }
 
-export default function UserProfile({ params }: { params: { userId: string } }) {
+export default function UserProfilePage({ params }: { params: { userId: string } }) {
   const { userId } = params;
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -74,24 +76,29 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
         const swapsSnapshot = await getDocs(q);
         
         // First convert the document data to properly typed objects
-        const allSwaps = swapsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            participants: data.participants || [],
-            status: data.status || '',
-            createdAt: data.createdAt || null,
-            updatedAt: data.updatedAt || null,
-            skillOffered: data.skillOffered || '',
-            skillRequested: data.skillRequested || '',
-            initiator: data.initiator || '',
-            recipient: data.recipient || '',
-            ...data
-          } as Swap;
+        const swapsData: Swap[] = [];
+        
+        swapsSnapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+          // Only add if participants exists and is an array
+          if (data.participants && Array.isArray(data.participants)) {
+            swapsData.push({
+              id: docSnapshot.id,
+              participants: data.participants,
+              status: data.status || '',
+              createdAt: data.createdAt || null,
+              updatedAt: data.updatedAt || null,
+              skillOffered: data.skillOffered || '',
+              skillRequested: data.skillRequested || '',
+              initiator: data.initiator || '',
+              recipient: data.recipient || '',
+              ...data
+            });
+          }
         });
         
         // Then filter the properly typed objects
-        const relevantSwaps = allSwaps.filter(swap => 
+        const relevantSwaps = swapsData.filter(swap => 
           swap.participants.includes(userId) && 
           swap.participants.includes(user.uid)
         );
@@ -235,7 +242,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-gray-500">
-                    Member since {new Date(userProfile?.createdAt).toLocaleDateString()}
+                    Member since {userProfile?.createdAt?.toDate().toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -330,7 +337,7 @@ export default function UserProfile({ params }: { params: { userId: string } }) 
                             </p>
                           </div>
                           <div className="text-sm text-gray-500">
-                            {new Date(swap.createdAt).toLocaleDateString()}
+                            {swap.createdAt?.toDate().toLocaleDateString()}
                           </div>
                         </div>
                       </li>
